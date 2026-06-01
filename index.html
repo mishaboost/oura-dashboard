@@ -479,7 +479,6 @@ function renderActivity(){
   const d=filterHealth(state.activity.range);
   const sOk=d.filter(x=>x.steps>100&&x.steps<50000);
   const aS=avg(sOk.map(x=>x.steps));
-  document.getElementById('activity-metrics').innerHTML=`
   const idleOk=d.filter(x=>x.long_idle_time!=null); const aIdle=avg(idleOk.map(x=>x.long_idle_time));
   document.getElementById('activity-metrics').innerHTML=`
     <div class="metric"><div class="metric-label">Середні кроки</div><div class="metric-value">${aS?Math.round(aS).toLocaleString():'—'}</div></div>
@@ -521,11 +520,6 @@ function renderHeart(){
   const rOk=d.filter(x=>x.resting_hr&&x.resting_hr>30&&x.resting_hr<120);
   const hOk=d.filter(x=>x.hr_avg&&x.hr_avg>30&&x.hr_avg<200);
   const aR=avg(rOk.map(x=>x.resting_hr));
-  document.getElementById('heart-metrics').innerHTML=`
-    <div class="metric"><div class="metric-label">Середній RHR</div><div class="metric-value">${aR?Math.round(aR)+' bpm':'—'}</div></div>
-    <div class="metric"><div class="metric-label">Мін RHR</div><div class="metric-value">${rOk.length?Math.round(Math.min(...rOk.map(x=>x.resting_hr)))+' bpm':'—'}</div></div>
-    <div class="metric"><div class="metric-label">Днів з RHR</div><div class="metric-value">${rOk.length}</div></div>
-    <div class="metric"><div class="metric-label">Днів з HR</div><div class="metric-value">${hOk.length}</div></div>`;
   dc('hrChart'); dc('hrAvgChart');
   const isDayStep=state.heart.step==='day';
   if(rOk.length){
