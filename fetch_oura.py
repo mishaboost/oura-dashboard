@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import sys
@@ -9,46 +10,78 @@ BASE_URL = "https://api.ouraring.com/v2/usercollection"
 DATA_FILE = "data.json"
 
 
-def fetch(endpoint, params):
+def fetch_all(endpoint, params):
     headers = {"Authorization": f"Bearer {TOKEN}"}
-    resp = requests.get(f"{BASE_URL}/{endpoint}", headers=headers, params=params)
-    resp.raise_for_status()
-    return resp.json().get("data", [])
+    results = []
+    current_params = dict(params)
+    while True:
+        resp = requests.get(f"{BASE_URL}/{endpoint}", headers=headers, params=current_params)
+        resp.raise_for_status()
+        body = resp.json()
+        results.extend(body.get("data", []))
+        next_token = body.get("next_token")
+        if not next_token:
+            break
+        current_params = {"next_token": next_token}
+    return results
+
+
+def organize_by_day(all_data, sleep, activity, workouts):
+    EMPTY = lambda: {"daily_sleep": [], "daily_activity": [], "workout": []}
+
+    for item in sleep:
+        d = item.get("day", item.get("start_datetime", "")[:10])
+        all_data.setdefault(d, EMPTY())["daily_sleep"].append(item)
+
+    for item in activity:
+        d = item.get("day", item.get("start_datetime", "")[:10])
+        all_data.setdefault(d, EMPTY())["daily_activity"].append(item)
+
+    for item in workouts:
+        d = item.get("day", item.get("start_datetime", "")[:10])
+        all_data.setdefault(d, EMPTY())["workout"].append(item)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Fetch Oura data and save to data.json")
+    parser.add_argument("--start-date", default=None, help="YYYY-MM-DD (default: yesterday)")
+    parser.add_argument("--end-date", default=None, help="YYYY-MM-DD (default: yesterday)")
+    args = parser.parse_args()
+
     yesterday = (date.today() - timedelta(days=1)).isoformat()
-    print(f"Fetching data for {yesterday}...")
+    start = args.start_date or yesterday
+    end = args.end_date or yesterday
 
-    day_params = {"start_date": yesterday, "end_date": yesterday}
-    hr_params = {
-        "start_datetime": f"{yesterday}T00:00:00",
-        "end_datetime": f"{yesterday}T23:59:59",
-    }
+    print(f"Fetching {start} → {end}")
 
-    new_entry = {
-        "daily_sleep": fetch("daily_sleep", day_params),
-        "daily_activity": fetch("daily_activity", day_params),
-        "workout": fetch("workout", day_params),
-        "heartrate": fetch("heartrate", hr_params),
-    }
+    day_params = {"start_date": start, "end_date": end}
 
-    # Load existing data without overwriting old days
+    print("  daily_sleep...")
+    sleep_data = fetch_all("daily_sleep", day_params)
+    print(f"    {len(sleep_data)} records")
+
+    print("  daily_activity...")
+    activity_data = fetch_all("daily_activity", day_params)
+    print(f"    {len(activity_data)} records")
+
+    print("  workout...")
+    workout_data = fetch_all("workout", day_params)
+    print(f"    {len(workout_data)} records")
+
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE) as f:
             all_data = json.load(f)
-        print(f"Loaded {len(all_data)} existing day(s) from {DATA_FILE}")
+        print(f"\nLoaded {len(all_data)} existing day(s) from {DATA_FILE}")
     else:
         all_data = {}
 
-    all_data[yesterday] = new_entry
+    before = len(all_data)
+    organize_by_day(all_data, sleep_data, activity_data, workout_data)
 
     with open(DATA_FILE, "w") as f:
         json.dump(all_data, f, indent=2, ensure_ascii=False)
 
-    print(f"Saved. Total days in {DATA_FILE}: {len(all_data)}")
-    for key, section in new_entry.items():
-        print(f"  {key}: {len(section)} record(s)")
+    print(f"Done. Days added/updated: {len(all_data) - before}. Total in file: {len(all_data)}")
 
 
 if __name__ == "__main__":
