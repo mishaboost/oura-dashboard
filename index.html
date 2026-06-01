@@ -72,7 +72,7 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
 <body>
 <div class="app">
 <h1>Health Dashboard</h1>
-<p class="subtitle">Oura Ring + Apple Health · 2023–2026 · 440 днів · 1323 тренувань</p>
+<p class="subtitle" style="display:flex;align-items:center;gap:10px">Oura Ring + Apple Health · 2023–2026 · 440 днів · 1323 тренувань <span onclick="showTokenSetup()" title="Налаштування нотаток" style="cursor:pointer;font-size:12px;color:#bbb;border:0.5px solid #ddd;border-radius:4px;padding:1px 7px">⚙ нотатки</span></p>
 
 <div class="tabs">
   <button class="tab active" onclick="showPanel('sleep',this)">🌙 Сон</button>
@@ -429,15 +429,55 @@ function renderHeart(){
 
 // ---- CALENDAR ----
 const GIST_ID='7d70219c25a8f2d98fba5e67cc920d73';
-const GIST_TOKEN='';
 const GIST_FILE='oura_notes.json';
 let NOTES={};
 let notesLoaded=false;
 
+function getToken(){return localStorage.getItem('oura_gist_token')||'';}
+
+function showTokenSetup(){
+  const existing=document.getElementById('token-setup');
+  if(existing) return;
+  const div=document.createElement('div');
+  div.id='token-setup';
+  div.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:20000;display:flex;align-items:center;justify-content:center';
+  div.innerHTML=`<div style="background:#fff;border-radius:12px;padding:28px;width:360px;box-shadow:0 4px 24px rgba(0,0,0,0.15)">
+    <h3 style="font-size:16px;font-weight:500;margin-bottom:8px">Налаштування нотаток</h3>
+    <p style="font-size:13px;color:#888;margin-bottom:16px;line-height:1.5">Введи GitHub токен з доступом до Gist. Він збережеться лише в цьому браузері і ніколи не потрапить на GitHub.</p>
+    <input id="token-input" type="password" placeholder="ghp_..." style="width:100%;border:0.5px solid #ddd;border-radius:6px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;margin-bottom:8px">
+    <div id="token-error" style="font-size:12px;color:#e24b4a;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('token-setup').remove()" style="padding:7px 16px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer;font-size:13px;font-family:inherit">Пізніше</button>
+      <button onclick="saveToken()" style="padding:7px 16px;border-radius:6px;border:none;background:#1a1a18;color:#fff;cursor:pointer;font-size:13px;font-family:inherit">Зберегти</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  document.getElementById('token-input').focus();
+}
+
+async function saveToken(){
+  const t=document.getElementById('token-input').value.trim();
+  if(!t){document.getElementById('token-error').textContent='Введи токен';return;}
+  document.getElementById('token-error').textContent='Перевіряю...';
+  try{
+    const r=await fetch('https://api.github.com/gists/'+GIST_ID,{headers:{'Authorization':'token '+t}});
+    if(!r.ok) throw new Error('invalid');
+    localStorage.setItem('oura_gist_token',t);
+    document.getElementById('token-setup').remove();
+    notesLoaded=false;
+    renderCalendar();
+  }catch(e){
+    document.getElementById('token-error').textContent='Токен невірний або немає доступу до Gist';
+  }
+}
+
 async function loadNotes(){
   if(notesLoaded) return;
+  const token=getToken();
+  if(!token){showTokenSetup();return;}
   try{
-    const r=await fetch('https://api.github.com/gists/'+GIST_ID,{headers:{'Authorization':'token '+GIST_TOKEN}});
+    const r=await fetch('https://api.github.com/gists/'+GIST_ID,{headers:{'Authorization':'token '+token}});
+    if(r.status===401){localStorage.removeItem('oura_gist_token');showTokenSetup();return;}
     const data=await r.json();
     const raw=data.files[GIST_FILE]?.content||'{}';
     NOTES=JSON.parse(raw);
@@ -449,7 +489,7 @@ async function saveNote(date,text){
   NOTES[date]=text;
   if(!text) delete NOTES[date];
   const body=JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(NOTES,null,2)}}});
-  await fetch('https://api.github.com/gists/'+GIST_ID,{method:'PATCH',headers:{'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'},body});
+  await fetch('https://api.github.com/gists/'+GIST_ID,{method:'PATCH',headers:{'Authorization':'token '+getToken(),'Content-Type':'application/json'},body});
 }
 
 function openNoteModal(date){
