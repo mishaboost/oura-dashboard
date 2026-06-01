@@ -191,20 +191,26 @@ async function loadData(){
     for(const date of dates){
       const day = raw[date];
       const activity = day.daily_activity?.[0] ?? null;
+      // Primary sleep = long_sleep, fallback to longest session
+      const sleepSessions = day.sleep ?? [];
+      const mainSleep = sleepSessions.find(s => s.type === 'long_sleep')
+        ?? sleepSessions.sort((a,b) => (b.total_sleep_duration??0) - (a.total_sleep_duration??0))[0]
+        ?? null;
+      const sec2h = s => s != null ? +(s / 3600).toFixed(2) : null;
       HEALTH.push({
         date,
         steps:       activity?.steps         ?? null,
         calories:    activity?.total_calories ?? null,
-        hr_avg:      null,
-        hrv:         null,
-        resting_hr:  null,
+        hr_avg:      mainSleep?.average_heart_rate  ?? null,
+        hrv:         mainSleep?.average_hrv         ?? null,
+        resting_hr:  mainSleep?.lowest_heart_rate   ?? null,
         spo2:        null,
-        resp_rate:   null,
-        sleep_deep:  null,
-        sleep_rem:   null,
-        sleep_core:  null,
-        sleep_awake: null,
-        sleep_total: null,
+        resp_rate:   mainSleep?.average_breath      ?? null,
+        sleep_deep:  sec2h(mainSleep?.deep_sleep_duration),
+        sleep_rem:   sec2h(mainSleep?.rem_sleep_duration),
+        sleep_core:  sec2h(mainSleep?.light_sleep_duration),
+        sleep_awake: sec2h(mainSleep?.awake_time),
+        sleep_total: sec2h(mainSleep?.total_sleep_duration),
       });
       if(day.workout){
         for(const w of day.workout){

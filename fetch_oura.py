@@ -26,12 +26,21 @@ def fetch_all(endpoint, params):
     return results
 
 
-def organize_by_day(all_data, sleep, activity, workouts):
-    EMPTY = lambda: {"daily_sleep": [], "daily_activity": [], "workout": []}
+def organize_by_day(all_data, daily_sleep, sleep, activity, workouts):
+    EMPTY = lambda: {"daily_sleep": [], "sleep": [], "daily_activity": [], "workout": []}
+
+    for item in daily_sleep:
+        d = item.get("day", item.get("start_datetime", "")[:10])
+        all_data.setdefault(d, EMPTY())["daily_sleep"].append(item)
 
     for item in sleep:
         d = item.get("day", item.get("start_datetime", "")[:10])
-        all_data.setdefault(d, EMPTY())["daily_sleep"].append(item)
+        entry = all_data.setdefault(d, EMPTY())
+        # Keep only lightweight fields — drop per-minute arrays to save space
+        entry["sleep"].append({k: v for k, v in item.items()
+                                if k not in ("heart_rate", "hrv", "movement_30_sec",
+                                             "sleep_phase_30_sec", "sleep_phase_5_min",
+                                             "app_sleep_phase_5_min", "class_5_min")})
 
     for item in activity:
         d = item.get("day", item.get("start_datetime", "")[:10])
@@ -57,7 +66,11 @@ def main():
     day_params = {"start_date": start, "end_date": end}
 
     print("  daily_sleep...")
-    sleep_data = fetch_all("daily_sleep", day_params)
+    daily_sleep_data = fetch_all("daily_sleep", day_params)
+    print(f"    {len(daily_sleep_data)} records")
+
+    print("  sleep (detailed)...")
+    sleep_data = fetch_all("sleep", day_params)
     print(f"    {len(sleep_data)} records")
 
     print("  daily_activity...")
@@ -76,7 +89,7 @@ def main():
         all_data = {}
 
     before = len(all_data)
-    organize_by_day(all_data, sleep_data, activity_data, workout_data)
+    organize_by_day(all_data, daily_sleep_data, sleep_data, activity_data, workout_data)
 
     with open(DATA_FILE, "w") as f:
         json.dump(all_data, f, indent=2, ensure_ascii=False)
