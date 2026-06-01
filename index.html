@@ -79,6 +79,7 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
   <button class="tab active" onclick="showPanel('sleep',this)">🌙 Сон</button>
   <button class="tab" onclick="showPanel('activity',this)">🏃 Активність</button>
   <button class="tab" onclick="showPanel('heart',this)">❤️ Пульс</button>
+  <button class="tab" onclick="showPanel('readiness',this)">🔋 Готовність</button>
   <button class="tab" onclick="showPanel('calendar',this)">📅 Календар</button>
 </div>
 
@@ -132,6 +133,12 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
       <div class="chart-wrap" style="height:190px"><canvas id="calChart" role="img" aria-label="Калорії"></canvas></div>
     </div>
   </div>
+  <div class="section">
+    <div class="card section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none">Сидячий час</div>
+    <div class="card" style="border-top:none;border-radius:0 0 8px 8px">
+      <div class="chart-wrap" style="height:190px"><canvas id="idleChart" role="img" aria-label="Сидячий час"></canvas></div>
+    </div>
+  </div>
 </div>
 
 <!-- HEART -->
@@ -157,6 +164,30 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
   </div>
 </div>
 
+
+
+<!-- READINESS -->
+<div id="panel-readiness" class="panel">
+  <div class="metrics" id="readiness-metrics"></div>
+  <div class="section">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Горизонт:</span>
+      <div class="btn-group" id="readiness-range"></div>
+      <span class="ctrl-label" style="margin-left:8px">Крок:</span>
+      <div class="btn-group" id="readiness-step"></div>
+    </div>
+    <div class="card section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none">Readiness Score</div>
+    <div class="card" style="border-top:none;border-radius:0 0 8px 8px">
+      <div class="chart-wrap" style="height:230px"><canvas id="readinessChart" role="img" aria-label="Readiness Score"></canvas></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="card section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none">Складові готовності</div>
+    <div class="card" style="border-top:none;border-radius:0 0 8px 8px">
+      <div class="chart-wrap" style="height:210px"><canvas id="readinessContribChart" role="img" aria-label="Readiness Contributors"></canvas></div>
+    </div>
+  </div>
+</div>
 
 <!-- CALENDAR -->
 <div id="panel-calendar" class="panel">
@@ -190,7 +221,9 @@ async function loadData(){
     WORKOUTS = [];
     for(const date of dates){
       const day = raw[date];
-      const activity = day.daily_activity?.[0] ?? null;
+      const activity   = day.daily_activity?.[0]  ?? null;
+      const readiness  = day.daily_readiness?.[0] ?? null;
+      const spo2rec    = day.daily_spo2?.[0]       ?? null;
       // Primary sleep = long_sleep, fallback to longest session
       const sleepSessions = day.sleep ?? [];
       const mainSleep = sleepSessions.find(s => s.type === 'long_sleep')
@@ -206,11 +239,16 @@ async function loadData(){
         resting_hr:  mainSleep?.lowest_heart_rate   ?? null,
         spo2:        null,
         resp_rate:   mainSleep?.average_breath      ?? null,
-        sleep_deep:  sec2h(mainSleep?.deep_sleep_duration),
-        sleep_rem:   sec2h(mainSleep?.rem_sleep_duration),
-        sleep_core:  sec2h(mainSleep?.light_sleep_duration),
-        sleep_awake: sec2h(mainSleep?.awake_time),
-        sleep_total: sec2h(mainSleep?.total_sleep_duration),
+        sleep_deep:        sec2h(mainSleep?.deep_sleep_duration),
+        sleep_rem:         sec2h(mainSleep?.rem_sleep_duration),
+        sleep_core:        sec2h(mainSleep?.light_sleep_duration),
+        sleep_awake:       sec2h(mainSleep?.awake_time),
+        sleep_total:       sec2h(mainSleep?.total_sleep_duration),
+        sleep_score:       day.daily_sleep?.[0]?.score ?? null,
+        readiness_score:   readiness?.score ?? null,
+        readiness_contrib: readiness?.contributors ?? null,
+        long_idle_time:    activity ? +(activity.sedentary_time / 3600).toFixed(2) : null,
+        spo2:              spo2rec?.spo2_percentage?.average ?? null,
       });
       if(day.workout){
         for(const w of day.workout){
@@ -264,7 +302,8 @@ let state = {
   sleep:{range:'3m', step:'day'},
   activity:{range:'3m', step:'day'},
   heart:{range:'3m', step:'day'},
-  cal:{range:'6m'}
+  cal:{range:'6m'},
+  readiness:{range:'3m', step:'day'}
 };
 
 function typeColor(t){ return TYPE_COLORS[t] || '#B4B2A9'; }
@@ -401,6 +440,7 @@ function renderPanel(name){
   else if(name==='activity') renderActivity();
   else if(name==='heart') renderHeart();
   else if(name==='calendar') renderCalendar();
+  else if(name==='readiness') renderReadiness();
 }
 
 // ---- SLEEP ----
@@ -408,10 +448,12 @@ function renderSleep(){
   if(!document.getElementById('sleep-range').children.length) initControls('sleep');
   const d=filterHealth(state.sleep.range).filter(x=>x.sleep_total!=null&&x.sleep_total>1.5&&x.sleep_total<12);
   const aS=avg(d.map(x=>x.sleep_total)),aD=avg(d.map(x=>x.sleep_deep)),aR=avg(d.map(x=>x.sleep_rem));
+  const allD=filterHealth(state.sleep.range); const aScore=avg(allD.map(x=>x.sleep_score).filter(v=>v));
   document.getElementById('sleep-metrics').innerHTML=`
     <div class="metric"><div class="metric-label">Середній сон</div><div class="metric-value">${aS?aS.toFixed(1)+'г':'—'}</div></div>
     <div class="metric"><div class="metric-label">Deep sleep</div><div class="metric-value">${aD?aD.toFixed(1)+'г':'—'}</div></div>
     <div class="metric"><div class="metric-label">REM sleep</div><div class="metric-value">${aR?aR.toFixed(1)+'г':'—'}</div></div>
+    <div class="metric"><div class="metric-label">Sleep Score</div><div class="metric-value">${aScore?Math.round(aScore):'—'}</div></div>
     <div class="metric"><div class="metric-label">Ночей</div><div class="metric-value">${d.length}</div></div>`;
   dc('sleepChart'); dc('sleepTotalChart');
   if(!d.length) return;
@@ -438,9 +480,12 @@ function renderActivity(){
   const sOk=d.filter(x=>x.steps>100&&x.steps<50000);
   const aS=avg(sOk.map(x=>x.steps));
   document.getElementById('activity-metrics').innerHTML=`
+  const idleOk=d.filter(x=>x.long_idle_time!=null); const aIdle=avg(idleOk.map(x=>x.long_idle_time));
+  document.getElementById('activity-metrics').innerHTML=`
     <div class="metric"><div class="metric-label">Середні кроки</div><div class="metric-value">${aS?Math.round(aS).toLocaleString():'—'}</div></div>
     <div class="metric"><div class="metric-label">Макс кроків</div><div class="metric-value">${sOk.length?Math.max(...sOk.map(x=>x.steps)).toLocaleString():'—'}</div></div>
     <div class="metric"><div class="metric-label">Днів ≥ 10k</div><div class="metric-value">${sOk.filter(x=>x.steps>=10000).length}</div></div>
+    <div class="metric"><div class="metric-label">Сидячий час</div><div class="metric-value">${aIdle?aIdle.toFixed(1)+'г':'—'}</div></div>
     <div class="metric"><div class="metric-label">Днів всього</div><div class="metric-value">${sOk.length}</div></div>`;
   dc('stepsChart'); dc('calChart');
   if(!sOk.length) return;
@@ -459,6 +504,14 @@ function renderActivity(){
     data:{labels:ptCal.labels,datasets:[{label:'ккал',data:ptCal.values,borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.07)',tension:0.3,pointRadius:isDayStep?1.5:4,fill:true}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{ticks:{maxTicksLimit:16,color:'#888'},grid:{display:false}},y:{ticks:{color:'#888'}}}}});
+  dc('idleChart');
+  if(idleOk.length){
+    const ptIdle=aggregateHealth(idleOk, state.activity.step, 'long_idle_time');
+    charts['idleChart']=new Chart(document.getElementById('idleChart'),{type:'line',
+      data:{labels:ptIdle.labels,datasets:[{label:'Сидячий час',data:ptIdle.values,borderColor:'#9c7c38',backgroundColor:'rgba(156,124,56,0.07)',tension:0.3,pointRadius:isDayStep?1.5:4,fill:true}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{ticks:{maxTicksLimit:16,color:'#888'},grid:{display:false}},y:{ticks:{color:'#888'},title:{display:true,text:'год',color:'#888'}}}}});
+  }
 }
 
 // ---- HEART ----
@@ -489,8 +542,67 @@ function renderHeart(){
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
         scales:{x:{ticks:{maxTicksLimit:16,color:'#888'},grid:{display:false}},y:{ticks:{color:'#888'},title:{display:true,text:'bpm',color:'#888'}}}}});
   }
+  dc('hrvChart');
+  const hrvOk=d.filter(x=>x.hrv&&x.hrv>5&&x.hrv<200); const aHrv=avg(hrvOk.map(x=>x.hrv));
+  document.getElementById('heart-metrics').innerHTML=`
+    <div class="metric"><div class="metric-label">Середній RHR</div><div class="metric-value">${aR?Math.round(aR)+' bpm':'—'}</div></div>
+    <div class="metric"><div class="metric-label">Мін RHR</div><div class="metric-value">${rOk.length?Math.round(Math.min(...rOk.map(x=>x.resting_hr)))+' bpm':'—'}</div></div>
+    <div class="metric"><div class="metric-label">Середній HRV</div><div class="metric-value">${aHrv?Math.round(aHrv)+' ms':'—'}</div></div>
+    <div class="metric"><div class="metric-label">Днів з RHR</div><div class="metric-value">${rOk.length}</div></div>`;
+  if(hrvOk.length){
+    const ptHrv=aggregateHealth(hrvOk, state.heart.step, 'hrv');
+    charts['hrvChart']=new Chart(document.getElementById('hrvChart'),{type:'line',
+      data:{labels:ptHrv.labels,datasets:[{label:'HRV',data:ptHrv.values,borderColor:'#5DCAA5',backgroundColor:'rgba(93,202,165,0.08)',tension:0.4,pointRadius:isDayStep?2:4,fill:true}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{ticks:{maxTicksLimit:16,color:'#888'},grid:{display:false}},y:{ticks:{color:'#888'},title:{display:true,text:'ms',color:'#888'}}}}});
+  }
 }
 
+
+// ---- READINESS ----
+function renderReadiness(){
+  if(!document.getElementById('readiness-range').children.length) initControls('readiness');
+  const d=filterHealth(state.readiness.range);
+  const rOk=d.filter(x=>x.readiness_score!=null);
+  const aR=avg(rOk.map(x=>x.readiness_score));
+  const aHrv=avg(d.filter(x=>x.hrv).map(x=>x.hrv));
+  const lastContrib=rOk.length?rOk[rOk.length-1].readiness_contrib:null;
+  document.getElementById('readiness-metrics').innerHTML=`
+    <div class="metric"><div class="metric-label">Середній Score</div><div class="metric-value">${aR?Math.round(aR):'—'}</div></div>
+    <div class="metric"><div class="metric-label">Мін Score</div><div class="metric-value">${rOk.length?Math.min(...rOk.map(x=>x.readiness_score)):'—'}</div></div>
+    <div class="metric"><div class="metric-label">Макс Score</div><div class="metric-value">${rOk.length?Math.max(...rOk.map(x=>x.readiness_score)):'—'}</div></div>
+    <div class="metric"><div class="metric-label">HRV середній</div><div class="metric-value">${aHrv?Math.round(aHrv)+' ms':'—'}</div></div>`;
+  dc('readinessChart'); dc('readinessContribChart');
+  if(!rOk.length) return;
+  const pt=aggregateHealth(rOk, state.readiness.step, 'readiness_score');
+  const isDayStep=state.readiness.step==='day';
+  charts['readinessChart']=new Chart(document.getElementById('readinessChart'),{type:'line',
+    data:{labels:pt.labels,datasets:[{label:'Readiness',data:pt.values,
+      borderColor:'#7F77DD',backgroundColor:'rgba(127,119,221,0.09)',tension:0.4,
+      pointRadius:isDayStep?2:4,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{maxTicksLimit:16,color:'#888'},grid:{display:false}},
+              y:{ticks:{color:'#888'},min:0,max:100,title:{display:true,text:'score',color:'#888'}}}}});
+  // Contributors bar chart — use latest available day
+  const CONTRIB_LABELS={
+    activity_balance:'Активність', body_temperature:'Температура',
+    hrv_balance:'HRV', previous_day_activity:'Активн. вчора',
+    previous_night:'Попередня ніч', recovery_index:'Відновлення',
+    resting_heart_rate:'RHR', sleep_balance:'Сон', sleep_regularity:'Регулярність сну'
+  };
+  if(lastContrib){
+    const keys=Object.keys(lastContrib);
+    charts['readinessContribChart']=new Chart(document.getElementById('readinessContribChart'),{
+      type:'bar',
+      data:{labels:keys.map(k=>CONTRIB_LABELS[k]||k),datasets:[{
+        label:'Score',data:keys.map(k=>lastContrib[k]),
+        backgroundColor:'rgba(127,119,221,0.7)',borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.raw}}},
+        scales:{x:{min:0,max:100,ticks:{color:'#888'},grid:{color:'rgba(0,0,0,0.05)'}},
+                y:{ticks:{color:'#666',font:{size:11}},grid:{display:false}}}}});
+  }
+}
 
 // ---- CALENDAR ----
 const GIST_ID='7d70219c25a8f2d98fba5e67cc920d73';

@@ -26,8 +26,11 @@ def fetch_all(endpoint, params):
     return results
 
 
-def organize_by_day(all_data, daily_sleep, sleep, activity, workouts):
-    EMPTY = lambda: {"daily_sleep": [], "sleep": [], "daily_activity": [], "workout": []}
+def organize_by_day(all_data, daily_sleep, sleep, activity, workouts, readiness, spo2):
+    EMPTY = lambda: {
+        "daily_sleep": [], "sleep": [], "daily_activity": [],
+        "workout": [], "daily_readiness": [], "daily_spo2": [],
+    }
 
     for item in daily_sleep:
         d = item.get("day", item.get("start_datetime", "")[:10])
@@ -36,7 +39,6 @@ def organize_by_day(all_data, daily_sleep, sleep, activity, workouts):
     for item in sleep:
         d = item.get("day", item.get("start_datetime", "")[:10])
         entry = all_data.setdefault(d, EMPTY())
-        # Keep only lightweight fields — drop per-minute arrays to save space
         entry["sleep"].append({k: v for k, v in item.items()
                                 if k not in ("heart_rate", "hrv", "movement_30_sec",
                                              "sleep_phase_30_sec", "sleep_phase_5_min",
@@ -50,6 +52,14 @@ def organize_by_day(all_data, daily_sleep, sleep, activity, workouts):
         d = item.get("day", item.get("start_datetime", "")[:10])
         all_data.setdefault(d, EMPTY())["workout"].append(item)
 
+    for item in readiness:
+        d = item.get("day", item.get("start_datetime", "")[:10])
+        all_data.setdefault(d, EMPTY())["daily_readiness"].append(item)
+
+    for item in spo2:
+        d = item.get("day", item.get("start_datetime", "")[:10])
+        all_data.setdefault(d, EMPTY())["daily_spo2"].append(item)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch Oura data and save to data.json")
@@ -62,24 +72,22 @@ def main():
     end = args.end_date or yesterday
 
     print(f"Fetching {start} → {end}")
-
     day_params = {"start_date": start, "end_date": end}
 
-    print("  daily_sleep...")
-    daily_sleep_data = fetch_all("daily_sleep", day_params)
-    print(f"    {len(daily_sleep_data)} records")
-
-    print("  sleep (detailed)...")
-    sleep_data = fetch_all("sleep", day_params)
-    print(f"    {len(sleep_data)} records")
-
-    print("  daily_activity...")
-    activity_data = fetch_all("daily_activity", day_params)
-    print(f"    {len(activity_data)} records")
-
-    print("  workout...")
-    workout_data = fetch_all("workout", day_params)
-    print(f"    {len(workout_data)} records")
+    endpoints = [
+        ("daily_sleep",    "daily_sleep_data"),
+        ("sleep",          "sleep_data"),
+        ("daily_activity", "activity_data"),
+        ("workout",        "workout_data"),
+        ("daily_readiness","readiness_data"),
+        ("daily_spo2",     "spo2_data"),
+    ]
+    results = {}
+    for ep, key in endpoints:
+        print(f"  {ep}...")
+        data = fetch_all(ep, day_params)
+        results[key] = data
+        print(f"    {len(data)} records")
 
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE) as f:
@@ -89,7 +97,15 @@ def main():
         all_data = {}
 
     before = len(all_data)
-    organize_by_day(all_data, daily_sleep_data, sleep_data, activity_data, workout_data)
+    organize_by_day(
+        all_data,
+        results["daily_sleep_data"],
+        results["sleep_data"],
+        results["activity_data"],
+        results["workout_data"],
+        results["readiness_data"],
+        results["spo2_data"],
+    )
 
     with open(DATA_FILE, "w") as f:
         json.dump(all_data, f, indent=2, ensure_ascii=False)
