@@ -67,6 +67,18 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
 
 
 
+.analysis-block{background:#fff;border-radius:8px;border:0.5px solid #e0dfd8;padding:16px;margin-bottom:18px}
+.analysis-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.analysis-title{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.05em}
+.analysis-date{font-size:11px;color:#bbb}
+.analysis-body{font-size:13px;color:#1a1a18;line-height:1.65}
+.analysis-body h3{font-size:13px;font-weight:600;margin:12px 0 4px;color:#1a1a18}
+.analysis-body strong{font-weight:600}
+.analysis-body p{margin:0 0 6px}
+.analysis-placeholder{color:#bbb;font-size:13px;padding:8px 0}
+.analysis-btn{padding:5px 12px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer;font-size:12px;color:#666;font-family:inherit}
+.analysis-btn:disabled{opacity:0.5;cursor:default}
+
 </style>
 </head>
 <body>
@@ -76,6 +88,18 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
   <button id="sync-btn" onclick="triggerSync()" style="padding:6px 14px;border-radius:7px;border:0.5px solid #ccc;background:#fff;cursor:pointer;font-size:12px;color:#555;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,0.07);white-space:nowrap">↻ Оновити дані</button>
 </div>
 <p class="subtitle" style="display:flex;align-items:center;gap:10px">Oura Ring + Apple Health · 2023–2026 · 440 днів · 1323 тренувань <span onclick="showTokenSetup()" title="Налаштування нотаток" style="cursor:pointer;font-size:12px;color:#bbb;border:0.5px solid #ddd;border-radius:4px;padding:1px 7px">⚙ нотатки</span></p>
+
+<div class="analysis-block" id="day-analysis">
+  <div class="analysis-header">
+    <span class="analysis-title">Аналіз дня</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="analysis-date" id="analysis-date"></span>
+      <button class="analysis-btn" id="analysis-btn" onclick="refreshAnalysis()">Оновити аналіз</button>
+    </div>
+  </div>
+  <div id="analysis-content"><div class="analysis-placeholder">Завантаження…</div></div>
+</div>
+
 
 <div id="loading" style="display:none;color:#aaa;font-size:13px;padding:20px 0">Завантаження даних…</div>
 <div class="tabs">
@@ -208,6 +232,8 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
 <script>
 let HEALTH = [];
 let WORKOUTS = [];
+let LAST_DAY_RAW = null;
+let LAST_DAY_DATE = null;
 
 function toActivityType(s){
   if(!s) return 'Other';
@@ -267,6 +293,10 @@ async function loadData(){
         }
       }
     }
+    // Save last day raw for analysis
+    LAST_DAY_DATE = dates[dates.length-1];
+    LAST_DAY_RAW  = raw[LAST_DAY_DATE] ?? null;
+
     // Update subtitle
     const maxDate = dates[dates.length-1];
     document.querySelector('.subtitle').innerHTML =
@@ -278,6 +308,7 @@ async function loadData(){
   }
   document.getElementById('loading').style.display='none';
   renderSleep();
+  runDayAnalysis(false);
 }
 
 
@@ -607,6 +638,188 @@ const GIST_ID='7d70219c25a8f2d98fba5e67cc920d73';
 const GIST_FILE='oura_notes.json';
 let NOTES={};
 let notesLoaded=false;
+
+// ---- DAY ANALYSIS (Claude API) ----
+function getAnthropicKey(){return localStorage.getItem('anthropic_api_key')||'';}
+
+function showAnthropicKeySetup(onSave){
+  if(document.getElementById('akey-setup')) return;
+  const div=document.createElement('div');
+  div.id='akey-setup';
+  div.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:20000;display:flex;align-items:center;justify-content:center';
+  div.innerHTML=`<div style="background:#fff;border-radius:12px;padding:28px;width:380px;box-shadow:0 4px 24px rgba(0,0,0,0.15)">
+    <h3 style="font-size:16px;font-weight:500;margin-bottom:8px">Anthropic API ключ</h3>
+    <p style="font-size:13px;color:#888;margin-bottom:16px;line-height:1.5">Ключ зберігається лише в цьому браузері і ніколи не потрапить у файли або на GitHub.</p>
+    <input id="akey-input" type="password" placeholder="sk-ant-..." style="width:100%;border:0.5px solid #ddd;border-radius:6px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;margin-bottom:8px">
+    <div id="akey-error" style="font-size:12px;color:#e24b4a;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('akey-setup').remove()" style="padding:7px 16px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer;font-size:13px;font-family:inherit">Скасувати</button>
+      <button onclick="saveAnthropicKey(${onSave?'true':'false'})" style="padding:7px 16px;border-radius:6px;border:none;background:#1a1a18;color:#fff;cursor:pointer;font-size:13px;font-family:inherit">Зберегти</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  document.getElementById('akey-input').focus();
+}
+
+function saveAnthropicKey(andRun){
+  const t=document.getElementById('akey-input').value.trim();
+  if(!t.startsWith('sk-')){document.getElementById('akey-error').textContent='Ключ має починатися з sk-';return;}
+  localStorage.setItem('anthropic_api_key',t);
+  document.getElementById('akey-setup').remove();
+  if(andRun) runDayAnalysis(true);
+}
+
+function buildAnalysisPrompt(){
+  if(!LAST_DAY_RAW||!LAST_DAY_DATE) return null;
+  const day=LAST_DAY_RAW;
+  const rd=day.daily_readiness?.[0]??null;
+  const sl=day.sleep?.find(s=>s.type==='long_sleep')??day.sleep?.[0]??null;
+  const dsl=day.daily_sleep?.[0]??null;
+  const sec2h=s=>s!=null?+(s/3600).toFixed(1):null;
+
+  const rdScore=rd?.score??'—';
+  const rdC=rd?.contributors??{};
+  const sleepScore=dsl?.score??'—';
+  const totalH=sec2h(sl?.total_sleep_duration);
+  const deepH=sec2h(sl?.deep_sleep_duration);
+  const remH=sec2h(sl?.rem_sleep_duration);
+  const lightH=sec2h(sl?.light_sleep_duration);
+  const awakeH=sec2h(sl?.awake_time);
+  const eff=sl?.efficiency??'—';
+  const bedStart=sl?.bedtime_start?sl.bedtime_start.slice(11,16):'—';
+  const bedEnd=sl?.bedtime_end?sl.bedtime_end.slice(11,16):'—';
+
+  // 7-day trend
+  const last7=HEALTH.filter(h=>h.date<LAST_DAY_DATE).slice(-7);
+  const a=arr=>{const v=arr.filter(x=>x!=null&&!isNaN(x));return v.length?(v.reduce((s,x)=>s+x,0)/v.length).toFixed(1):null;};
+  const avgHrv=a(last7.map(h=>h.hrv));
+  const avgRhr=a(last7.map(h=>h.resting_hr));
+  const avgSleep=a(last7.map(h=>h.sleep_total));
+  const avgReadiness=a(last7.map(h=>h.readiness_score).filter(Boolean));
+
+  // Yesterday activity
+  const yesterday=last7[last7.length-1];
+  const ystSteps=yesterday?.steps??null;
+  const ystWorkouts=WORKOUTS.filter(w=>w.d===yesterday?.date);
+  const ystWkStr=ystWorkouts.length
+    ?ystWorkouts.map(w=>`${typeUA(w.t)} ${w.min}хв`).join(', ')
+    :'немає';
+
+  return `Проаналізуй мої ранкові метрики здоров'я за ${LAST_DAY_DATE}:
+
+READINESS (готовність до навантажень): ${rdScore}/100
+Складові readiness:
+- HRV balance: ${rdC.hrv_balance??'—'}
+- Resting HR: ${rdC.resting_heart_rate??'—'}
+- Sleep balance: ${rdC.sleep_balance??'—'}
+- Activity balance: ${rdC.activity_balance??'—'}
+- Body temperature: ${rdC.body_temperature??'—'}
+- Recovery index: ${rdC.recovery_index??'—'}
+- Previous night: ${rdC.previous_night??'—'}
+- Sleep regularity: ${rdC.sleep_regularity??'—'}
+
+СОН минулої ночі:
+- Sleep score: ${sleepScore}/100
+- Загальний сон: ${totalH??'—'}г (${bedStart}–${bedEnd})
+- Deep: ${deepH??'—'}г | REM: ${remH??'—'}г | Light: ${lightH??'—'}г | Awake: ${awakeH??'—'}г
+- Ефективність: ${eff}%
+
+ТРЕНД 7 ДНІВ (до цього дня):
+- Середній HRV: ${avgHrv??'—'} ms
+- Середній RHR: ${avgRhr??'—'} bpm
+- Середня тривалість сну: ${avgSleep??'—'}г
+- Середній readiness: ${avgReadiness??'—'}/100
+
+ВЧОРА (${yesterday?.date??'—'}):
+- Кроки: ${ystSteps?.toLocaleString()??'—'}
+- Тренування: ${ystWkStr}
+
+Дай детальний аналіз з поясненнями причинно-наслідкових зв'язків. Розкажи:
+1. Як спалось і що означають ці показники сну
+2. Що показують readiness і HRV — чи організм відновився
+3. Чи варто сьогодні тренуватись інтенсивно чи краще відновлення/легке навантаження
+4. На що звернути увагу сьогодні
+
+Пиши українською. Стиль: детальний, конкретний, з поясненням причинно-наслідкових зв'язків.`;
+}
+
+function renderAnalysisHtml(text){
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^# (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\n/g,'\n')
+    .split('\n').join('<br>');
+}
+
+async function runDayAnalysis(force){
+  if(!LAST_DAY_DATE) return;
+  const cacheKey='oura_analysis_'+LAST_DAY_DATE;
+  const btn=document.getElementById('analysis-btn');
+  const content=document.getElementById('analysis-content');
+  const dateEl=document.getElementById('analysis-date');
+  if(dateEl) dateEl.textContent=LAST_DAY_DATE;
+
+  // Use cache unless forced
+  if(!force){
+    const cached=localStorage.getItem(cacheKey);
+    if(cached){
+      content.innerHTML='<div class="analysis-body">'+cached+'</div>';
+      return;
+    }
+  }
+
+  const key=getAnthropicKey();
+  if(!key){
+    content.innerHTML='<div class="analysis-placeholder" style="cursor:pointer;color:#7F77DD" onclick="showAnthropicKeySetup(true)">Додай Anthropic API ключ щоб отримати аналіз →</div>';
+    return;
+  }
+
+  const prompt=buildAnalysisPrompt();
+  if(!prompt) return;
+
+  btn.disabled=true; btn.textContent='Аналізую…';
+  content.innerHTML='<div class="analysis-placeholder">Запитую Claude…</div>';
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key':key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1024,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    if(resp.status===401){
+      localStorage.removeItem('anthropic_api_key');
+      content.innerHTML='<div class="analysis-placeholder" style="cursor:pointer;color:#e24b4a" onclick="showAnthropicKeySetup(true)">Невірний API ключ. Натисни щоб ввести новий →</div>';
+      return;
+    }
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    const text=data.content?.[0]?.text??'Порожня відповідь';
+    const rendered=renderAnalysisHtml(text);
+    localStorage.setItem(cacheKey, rendered);
+    content.innerHTML='<div class="analysis-body">'+rendered+'</div>';
+  }catch(e){
+    content.innerHTML='<div class="analysis-placeholder" style="color:#e24b4a">Помилка: '+e.message+'</div>';
+  }finally{
+    btn.disabled=false; btn.textContent='Оновити аналіз';
+  }
+}
+
+function refreshAnalysis(){
+  if(!getAnthropicKey()){showAnthropicKeySetup(true);return;}
+  runDayAnalysis(true);
+}
 
 // ---- SYNC (GitHub Actions) ----
 function getGithubPat(){return localStorage.getItem('github_pat')||'';}
