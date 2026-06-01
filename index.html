@@ -467,8 +467,9 @@ function renderCalendar(){
         const minStr=w.min?Math.round(w.min)+' хв':'';
         const calStr=w.cal?Math.round(w.cal)+' ккал':'';
         const details=[minStr,calStr].filter(Boolean).join(' · ');
-        const tipText=`${typeUA(w.t)}${w.count>1?' (×'+w.count+')':''}|${details}`;
-        return `<span class="act-tag" style="background:${c}22;color:${c}" data-tip="${tipText}">${typeUA(w.t)}</span>`;
+        const label=typeUA(w.t)+(w.count>1?' (×'+w.count+')':'');
+        const tipAttr=(label+'|'+details).replace(/"/g,'&quot;');
+        return '<span class="act-tag" style="background:'+c+'22;color:'+c+'" data-tip="'+tipAttr+'">'+typeUA(w.t)+'</span>';
       }).join('');
       html+=`<div class="cal-cell">
         <span class="day-num">${day}</span>
@@ -486,27 +487,28 @@ function renderCalendar(){
   ).join('');
 }
 
-// Tooltip
-const tip=document.getElementById('tip');
+// Tooltip — lazy init after DOM ready
+function getTip(){return document.getElementById('tip');}
 document.addEventListener('mouseover',e=>{
+  const tip=getTip(); if(!tip) return;
   const tag=e.target.closest('[data-tip]');
   if(!tag){tip.style.display='none';return;}
-  const parts=tag.dataset.tip.split('|');
+  const parts=tag.getAttribute('data-tip').split('|');
   const name=parts[0]||'';
   const details=parts[1]||'';
-  tip.innerHTML=`<strong>${name}</strong>${details}`;
+  tip.innerHTML='<strong>'+name+'</strong>'+(details?'<br>'+details:'');
   tip.style.display='block';
 });
 document.addEventListener('mousemove',e=>{
-  if(tip.style.display==='none') return;
+  const tip=getTip(); if(!tip||tip.style.display==='none') return;
   const x=e.clientX, y=e.clientY;
   const tw=tip.offsetWidth, th=tip.offsetHeight;
   tip.style.left=(x+tw+16>window.innerWidth ? x-tw-8 : x+12)+'px';
   tip.style.top=(y+th+8>window.innerHeight ? y-th-8 : y+8)+'px';
 });
-document.addEventListener('mouseout',e=>{
-  if(!e.target.closest('[data-tip]')) tip.style.display='none';
-});
+document.addEventListener('mouseleave',()=>{
+  const tip=getTip(); if(tip) tip.style.display='none';
+},true);
 
 // Init
 renderSleep();
