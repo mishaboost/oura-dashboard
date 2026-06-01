@@ -68,8 +68,10 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
 
 
 .analysis-block{background:#fff;border-radius:8px;border:0.5px solid #e0dfd8;padding:16px;margin-bottom:18px}
-.analysis-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.analysis-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;cursor:pointer;user-select:none}
 .analysis-title{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.05em}
+.analysis-collapsed .analysis-header{margin-bottom:0}
+.analysis-collapsed #analysis-content{display:none}
 .analysis-date{font-size:11px;color:#bbb}
 .analysis-body{font-size:13px;color:#1a1a18;line-height:1.65}
 .analysis-body h3{font-size:13px;font-weight:600;margin:12px 0 4px;color:#1a1a18}
@@ -90,8 +92,8 @@ h1{font-size:22px;font-weight:500;margin-bottom:3px}
 <p class="subtitle" style="display:flex;align-items:center;gap:10px">Oura Ring + Apple Health · 2023–2026 · 440 днів · 1323 тренувань <span onclick="showTokenSetup()" title="Налаштування нотаток" style="cursor:pointer;font-size:12px;color:#bbb;border:0.5px solid #ddd;border-radius:4px;padding:1px 7px">⚙ нотатки</span></p>
 
 <div class="analysis-block" id="day-analysis">
-  <div class="analysis-header">
-    <span class="analysis-title">Аналіз дня</span>
+  <div class="analysis-header" onclick="toggleAnalysis(event)">
+    <span class="analysis-title">Аналіз дня <span id="analysis-chevron" style="font-style:normal;font-size:10px">▾</span></span>
     <div style="display:flex;align-items:center;gap:10px">
       <span class="analysis-date" id="analysis-date"></span>
       <button class="analysis-btn" id="analysis-btn" onclick="refreshAnalysis()">Оновити аналіз</button>
@@ -308,6 +310,7 @@ async function loadData(){
   }
   document.getElementById('loading').style.display='none';
   renderSleep();
+  initAnalysisCollapse();
   runDayAnalysis(false);
 }
 
@@ -734,13 +737,7 @@ READINESS (готовність до навантажень): ${rdScore}/100
 - Кроки: ${ystSteps?.toLocaleString()??'—'}
 - Тренування: ${ystWkStr}
 
-Дай детальний аналіз з поясненнями причинно-наслідкових зв'язків. Розкажи:
-1. Як спалось і що означають ці показники сну
-2. Що показують readiness і HRV — чи організм відновився
-3. Чи варто сьогодні тренуватись інтенсивно чи краще відновлення/легке навантаження
-4. На що звернути увагу сьогодні
-
-Пиши українською. Стиль: детальний, конкретний, з поясненням причинно-наслідкових зв'язків.`;
+Дай стислий аналіз — 3-4 короткі абзаци без підзаголовків і нумерації: загальна оцінка стану, головний інсайт дня (що саме впливає на самопочуття), і конкретна рекомендація — тренуватись інтенсивно чи відновлюватись. Пиши українською, коротко і по суті.`;
 }
 
 function renderAnalysisHtml(text){
@@ -815,6 +812,22 @@ async function runDayAnalysis(force){
     content.innerHTML='<div class="analysis-placeholder" style="color:#e24b4a">Помилка: '+e.message+'</div>';
   }finally{
     btn.disabled=false; btn.textContent='Оновити аналіз';
+  }
+}
+
+function toggleAnalysis(e){
+  if(e.target.closest('button')) return;
+  const block=document.getElementById('day-analysis');
+  const collapsed=block.classList.toggle('analysis-collapsed');
+  document.getElementById('analysis-chevron').textContent=collapsed?'▸':'▾';
+  localStorage.setItem('analysis_collapsed', collapsed?'1':'0');
+}
+
+function initAnalysisCollapse(){
+  if(localStorage.getItem('analysis_collapsed')==='1'){
+    const block=document.getElementById('day-analysis');
+    block.classList.add('analysis-collapsed');
+    document.getElementById('analysis-chevron').textContent='▸';
   }
 }
 
