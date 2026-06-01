@@ -793,18 +793,20 @@ async function runDayAnalysis(force){
         'anthropic-dangerous-direct-browser-access':'true'
       },
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-sonnet-4-5',
         max_tokens:1024,
         messages:[{role:'user',content:prompt}]
       })
     });
+    const rawBody=await resp.text();
+    console.log('[Analysis] status:', resp.status, 'body:', rawBody);
     if(resp.status===401){
       localStorage.removeItem('anthropic_api_key');
       content.innerHTML='<div class="analysis-placeholder" style="cursor:pointer;color:#e24b4a" onclick="showAnthropicKeySetup(true)">Невірний API ключ. Натисни щоб ввести новий →</div>';
       return;
     }
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const data=await resp.json();
+    if(!resp.ok) throw new Error('HTTP '+resp.status+': '+rawBody);
+    const data=JSON.parse(rawBody);
     const text=data.content?.[0]?.text??'Порожня відповідь';
     const rendered=renderAnalysisHtml(text);
     localStorage.setItem(cacheKey, rendered);
