@@ -214,8 +214,9 @@ function toActivityType(s){
 async function loadData(){
   document.getElementById('loading').style.display='block';
   try {
-    const resp = await fetch('data.json');
-    const raw = await resp.json();
+    const [r1, r2] = await Promise.all([fetch('data_2024.json'), fetch('data_2025_2026.json')]);
+    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+    const raw = {...d1, ...d2};
     const dates = Object.keys(raw).sort();
     HEALTH = [];
     WORKOUTS = [];

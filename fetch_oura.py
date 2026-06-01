@@ -7,7 +7,9 @@ from datetime import date, timedelta
 
 TOKEN = os.environ.get("OURA_TOKEN", "WEZ24M4QEIZSCHXHNICSE62LX5WJZWHN")
 BASE_URL = "https://api.ouraring.com/v2/usercollection"
-DATA_FILE = "data.json"
+
+def data_file_for_year(year: int) -> str:
+    return "data_2024.json" if year <= 2024 else "data_2025_2026.json"
 
 
 def fetch_all(endpoint, params):
@@ -89,12 +91,24 @@ def main():
         results[key] = data
         print(f"    {len(data)} records")
 
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE) as f:
-            all_data = json.load(f)
-        print(f"\nLoaded {len(all_data)} existing day(s) from {DATA_FILE}")
-    else:
-        all_data = {}
+    # Group fetched records by target file
+    from collections import defaultdict
+    buckets: dict[str, dict] = defaultdict(dict)
+
+    # Load existing files
+    for year in range(2024, int(end[:4]) + 1):
+        fname = data_file_for_year(year)
+        if fname not in buckets and os.path.exists(fname):
+            with open(fname) as f:
+                buckets[fname] = json.load(f)
+            print(f"Loaded {len(buckets[fname])} day(s) from {fname}")
+        elif fname not in buckets:
+            buckets[fname] = {}
+
+    # Build a combined dict, organize, then re-split by file
+    all_data: dict = {}
+    for d in buckets.values():
+        all_data.update(d)
 
     before = len(all_data)
     organize_by_day(
@@ -107,10 +121,21 @@ def main():
         results["spo2_data"],
     )
 
-    with open(DATA_FILE, "w") as f:
-        json.dump(all_data, f, indent=2, ensure_ascii=False)
+    # Write back to the correct file(s)
+    written: dict[str, int] = {}
+    for day, entry in all_data.items():
+        fname = data_file_for_year(int(day[:4]))
+        buckets.setdefault(fname, {})[day] = entry
 
-    print(f"Done. Days added/updated: {len(all_data) - before}. Total in file: {len(all_data)}")
+    for fname, data in buckets.items():
+        with open(fname, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        written[fname] = len(data)
+
+    total = sum(written.values())
+    print(f"Done. Days added/updated: {total - before}. Total across files: {total}")
+    for fname, count in sorted(written.items()):
+        print(f"  {fname}: {count} days")
 
 
 if __name__ == "__main__":
