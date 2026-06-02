@@ -75,19 +75,22 @@ def main():
 
     print(f"Fetching {start} → {end}")
     day_params = {"start_date": start, "end_date": end}
+    # workout endpoint uses exclusive end_date, so add 1 day to include the last day
+    end_plus1 = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
+    workout_params = {"start_date": start, "end_date": end_plus1}
 
     endpoints = [
-        ("daily_sleep",    "daily_sleep_data"),
-        ("sleep",          "sleep_data"),
-        ("daily_activity", "activity_data"),
-        ("workout",        "workout_data"),
-        ("daily_readiness","readiness_data"),
-        ("daily_spo2",     "spo2_data"),
+        ("daily_sleep",    "daily_sleep_data",  day_params),
+        ("sleep",          "sleep_data",         day_params),
+        ("daily_activity", "activity_data",      day_params),
+        ("workout",        "workout_data",       workout_params),
+        ("daily_readiness","readiness_data",     day_params),
+        ("daily_spo2",     "spo2_data",          day_params),
     ]
     results = {}
-    for ep, key in endpoints:
+    for ep, key, params in endpoints:
         print(f"  {ep}...")
-        data = fetch_all(ep, day_params)
+        data = fetch_all(ep, params)
         results[key] = data
         print(f"    {len(data)} records")
 

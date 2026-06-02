@@ -461199,6 +461199,36 @@
         "day": "2026-05-31",
         "score": 85,
         "timestamp": "2026-05-31T00:00:00.000+00:00"
+      },
+      {
+        "id": "418a8d56-f802-4db9-af6b-498ab0d1085e",
+        "contributors": {
+          "deep_sleep": 94,
+          "efficiency": 93,
+          "latency": 86,
+          "rem_sleep": 83,
+          "restfulness": 73,
+          "timing": 92,
+          "total_sleep": 85
+        },
+        "day": "2026-05-31",
+        "score": 85,
+        "timestamp": "2026-05-31T00:00:00.000+00:00"
+      },
+      {
+        "id": "418a8d56-f802-4db9-af6b-498ab0d1085e",
+        "contributors": {
+          "deep_sleep": 94,
+          "efficiency": 93,
+          "latency": 86,
+          "rem_sleep": 83,
+          "restfulness": 73,
+          "timing": 92,
+          "total_sleep": 85
+        },
+        "day": "2026-05-31",
+        "score": 85,
+        "timestamp": "2026-05-31T00:00:00.000+00:00"
       }
     ],
     "sleep": [
@@ -461246,8 +461276,95 @@
       }
     ],
     "daily_activity": [],
-    "workout": [],
+    "workout": [
+      {
+        "id": "42948e54-08ec-4b2d-9bcc-7140b113ce0e",
+        "activity": "rowing",
+        "calories": 56.63576126098633,
+        "day": "2026-05-31",
+        "distance": 2.6138328712036523,
+        "end_datetime": "2026-05-31T09:15:56.969+01:00",
+        "intensity": "moderate",
+        "label": null,
+        "source": "workout_heart_rate",
+        "start_datetime": "2026-05-31T09:05:51.333+01:00"
+      },
+      {
+        "id": "d11607cd-3bff-44ff-9e6a-cd05403a77de",
+        "activity": "strengthTraining",
+        "calories": 93.61927032470703,
+        "day": "2026-05-31",
+        "distance": 7.031066468806375,
+        "end_datetime": "2026-05-31T09:42:16.000+01:00",
+        "intensity": "moderate",
+        "label": null,
+        "source": "manual",
+        "start_datetime": "2026-05-31T09:22:16.000+01:00"
+      },
+      {
+        "id": "b9308d17-7602-4b5e-aced-e8dc01443da1",
+        "activity": "walking",
+        "calories": 165.51698303222656,
+        "day": "2026-05-31",
+        "distance": 1708.4309902753378,
+        "end_datetime": "2026-05-31T14:37:00.000+01:00",
+        "intensity": "moderate",
+        "label": null,
+        "source": "confirmed",
+        "start_datetime": "2026-05-31T13:58:00.000+01:00"
+      },
+      {
+        "id": "9720d0f1-773d-484b-a3b9-4ac7354a888b",
+        "activity": "walking",
+        "calories": 114.0682144165039,
+        "day": "2026-05-31",
+        "distance": 1711.7696254945429,
+        "end_datetime": "2026-05-31T17:02:00.000+01:00",
+        "intensity": "moderate",
+        "label": null,
+        "source": "confirmed",
+        "start_datetime": "2026-05-31T16:27:00.000+01:00"
+      }
+    ],
     "daily_readiness": [
+      {
+        "id": "9561f53d-1912-41f1-b4a4-57fc4ce725ec",
+        "contributors": {
+          "activity_balance": 81,
+          "body_temperature": 100,
+          "hrv_balance": 90,
+          "previous_day_activity": 93,
+          "previous_night": 89,
+          "recovery_index": 94,
+          "resting_heart_rate": 91,
+          "sleep_balance": 76,
+          "sleep_regularity": 91
+        },
+        "day": "2026-05-31",
+        "score": 88,
+        "temperature_deviation": -0.1,
+        "temperature_trend_deviation": null,
+        "timestamp": "2026-05-31T00:00:00.000+00:00"
+      },
+      {
+        "id": "9561f53d-1912-41f1-b4a4-57fc4ce725ec",
+        "contributors": {
+          "activity_balance": 81,
+          "body_temperature": 100,
+          "hrv_balance": 90,
+          "previous_day_activity": 93,
+          "previous_night": 89,
+          "recovery_index": 94,
+          "resting_heart_rate": 91,
+          "sleep_balance": 76,
+          "sleep_regularity": 91
+        },
+        "day": "2026-05-31",
+        "score": 88,
+        "temperature_deviation": -0.1,
+        "temperature_trend_deviation": null,
+        "timestamp": "2026-05-31T00:00:00.000+00:00"
+      },
       {
         "id": "9561f53d-1912-41f1-b4a4-57fc4ce725ec",
         "contributors": {
@@ -461383,6 +461500,22 @@
       }
     ],
     "daily_spo2": [
+      {
+        "id": "d4955ded-d10f-41e7-aac5-5bc6c0f031df",
+        "breathing_disturbance_index": 1,
+        "day": "2026-05-31",
+        "spo2_percentage": {
+          "average": 98.233
+        }
+      },
+      {
+        "id": "d4955ded-d10f-41e7-aac5-5bc6c0f031df",
+        "breathing_disturbance_index": 1,
+        "day": "2026-05-31",
+        "spo2_percentage": {
+          "average": 98.233
+        }
+      },
       {
         "id": "d4955ded-d10f-41e7-aac5-5bc6c0f031df",
         "breathing_disturbance_index": 1,
