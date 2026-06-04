@@ -31,7 +31,14 @@ def build_prompt(all_data):
     if not dates:
         return None, None
 
-    last_date = dates[-1]
+    # Use the most recent day that actually has sleep data.
+    # Oura assigns sleep to the wake-up day, so today's night is today's date —
+    # but if the ring hasn't synced yet, today's entry may be empty.
+    last_date = next(
+        (d for d in reversed(dates)
+         if all_data[d].get("daily_sleep") or all_data[d].get("sleep")),
+        dates[-1],
+    )
     day = all_data[last_date]
 
     # Readiness

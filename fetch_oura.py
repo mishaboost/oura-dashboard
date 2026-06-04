@@ -70,8 +70,9 @@ def main():
     args = parser.parse_args()
 
     yesterday = (date.today() - timedelta(days=1)).isoformat()
+    today = date.today().isoformat()
     start = args.start_date or yesterday
-    end = args.end_date or yesterday
+    end = args.end_date or today
 
     print(f"Fetching {start} → {end}")
     day_params = {"start_date": start, "end_date": end}
