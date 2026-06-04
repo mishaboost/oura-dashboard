@@ -251,6 +251,7 @@ async function loadData(){
     const dates = Object.keys(raw).sort();
     HEALTH = [];
     WORKOUTS = [];
+    const seenWorkoutIds = new Set();
     for(const date of dates){
       const day = raw[date];
       const activity   = day.daily_activity?.[0]  ?? null;
@@ -284,6 +285,8 @@ async function loadData(){
       });
       if(day.workout){
         for(const w of day.workout){
+          if(w.id && seenWorkoutIds.has(w.id)) continue;
+          if(w.id) seenWorkoutIds.add(w.id);
           const start = new Date(w.start_datetime);
           const end   = new Date(w.end_datetime);
           WORKOUTS.push({
